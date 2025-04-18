@@ -1,7 +1,7 @@
 import React from 'react';
 
-import { useSWRConfig } from 'swr';
 import { Link } from '@tanstack/react-router';
+import { useSWRConfig } from 'swr';
 
 import { useMemoizedFn } from 'ahooks';
 import { EllipsisIcon, LogIn, PinOff } from 'lucide-react';
@@ -26,9 +26,10 @@ import { useLocalStorage } from '@/hooks/use-local-storage';
 interface IViewItemMenuProps extends React.ComponentPropsWithoutRef<'div'> {
   page: IWorkbenchViewItemPage;
   groupId?: string;
+  onOpenChange?: (open: boolean) => void;
 }
 
-export const ViewItemMenu: React.FC<IViewItemMenuProps> = ({ page, groupId }) => {
+export const ViewItemMenu: React.FC<IViewItemMenuProps> = ({ page, groupId, onOpenChange }) => {
   const { t } = useTranslation();
 
   const { teamId } = useVinesTeam();
@@ -68,7 +69,7 @@ export const ViewItemMenu: React.FC<IViewItemMenuProps> = ({ page, groupId }) =>
   const isWorkflowPage = !!page?.workflowId;
 
   return (
-    <DropdownMenu>
+    <DropdownMenu onOpenChange={onOpenChange}>
       <Tooltip>
         <DropdownMenuTrigger asChild>
           <TooltipTrigger asChild>

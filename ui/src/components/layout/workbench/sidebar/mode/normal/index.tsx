@@ -8,7 +8,7 @@ import { keyBy, map } from 'lodash';
 import { CircleSlash, Plus } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
-import { useWorkspacePages } from '@/apis/pages';
+import { useUpdateGroupPages, useWorkspacePages } from '@/apis/pages';
 import { IPinPage } from '@/apis/pages/typings.ts';
 import { VirtuaWorkbenchViewGroupList } from '@/components/layout/workbench/sidebar/mode/normal/group-virua';
 import { VirtuaWorkbenchViewList } from '@/components/layout/workbench/sidebar/mode/normal/virtua';
@@ -29,11 +29,10 @@ interface IWorkbenchNormalModeSidebarProps extends React.ComponentPropsWithoutRe
 
 export const WorkbenchNormalModeSidebar: React.FC<IWorkbenchNormalModeSidebarProps> = ({ showGroup = true }) => {
   const { t } = useTranslation();
-
   const { teamId } = useVinesTeam();
-
   const { data, isLoading } = useWorkspacePages();
   const [groupId, setGroupId] = useState<string>('default');
+  const { trigger } = useUpdateGroupPages(groupId);
 
   const originalPages = data?.pages ?? [];
   const originalGroups = useCreation(() => {
@@ -64,6 +63,7 @@ export const WorkbenchNormalModeSidebar: React.FC<IWorkbenchNormalModeSidebarPro
   const toggleToActivePageRef = useRef(activePage ? false : null);
 
   const [currentPage, setCurrentPage] = useLocalStorage<Partial<IWorkbenchViewItemPage>>('vines-ui-workbench-page', {});
+  const [localOrder, setLocalOrder] = useLocalStorage<string[]>(`vines-ui-workbench-order-${groupId}`, []);
 
   const latestOriginalPages = useLatest(originalPages);
   const latestOriginalGroups = useLatest(originalGroups);
@@ -182,6 +182,15 @@ export const WorkbenchNormalModeSidebar: React.FC<IWorkbenchNormalModeSidebarPro
               currentGroupId={groupId}
               onChildClick={(page) => {
                 setCurrentPage((prev) => ({ ...prev, [teamId]: { ...page, groupId } }));
+              }}
+              onReorder={async (newData) => {
+                if (!groupId) return;
+                const pageIds = newData.map((it) => it.id);
+                setLocalOrder(pageIds);
+                await trigger({
+                  pageId: pageIds[0],
+                  mode: 'add',
+                });
               }}
             />
             <Tooltip>

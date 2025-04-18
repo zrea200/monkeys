@@ -1,10 +1,11 @@
-import React, { createContext, forwardRef, useContext } from 'react';
+import { createContext, forwardRef, useContext, useState } from 'react';
 
+import { useSortable } from '@dnd-kit/sortable';
 import { useTranslation } from 'react-i18next';
 
 import { IPageInstanceType, IPinPage } from '@/apis/pages/typings.ts';
-import { ViewItemMenu } from '@/components/layout/workbench/sidebar/mode/normal/virtua/menu.tsx';
 import { EMOJI2LUCIDE_MAPPER } from '@/components/layout-wrapper/workspace/space/sidebar/tabs/tab.tsx';
+import { ViewItemMenu } from '@/components/layout/workbench/sidebar/mode/normal/virtua/menu.tsx';
 import { VinesIcon } from '@/components/ui/vines-icon';
 import { VinesLucideIcon } from '@/components/ui/vines-icon/lucide';
 import { cn, getI18nContent } from '@/utils';
@@ -19,6 +20,11 @@ export interface IWorkbenchViewItemProps {
 }
 
 export const ViewItem = forwardRef<HTMLDivElement, IWorkbenchViewItemProps>(({ page, onClick }) => {
+  const [disabled, setDisabled] = useState(false);
+  const { setNodeRef, listeners, attributes, transform, isDragging } = useSortable({
+    id: page.id,
+    disabled
+  });
   const { t } = useTranslation();
 
   const { pageId: currentPageId, groupId: currentGroupId } = useContext(WorkbenchViewItemCurrentData);
@@ -29,18 +35,27 @@ export const ViewItem = forwardRef<HTMLDivElement, IWorkbenchViewItemProps>(({ p
 
   return (
     <div
+      ref={setNodeRef}
       key={pageId}
       className={cn(
         'relative z-10 mb-1 flex cursor-pointer items-center space-x-2 rounded-md transition-colors hover:bg-accent hover:text-accent-foreground',
         currentPageId === pageId
           ? 'group border border-input bg-background p-2 text-accent-foreground'
           : 'p-[calc(0.5rem+1px)]',
+        isDragging && 'opacity-50'
       )}
       onClick={() => onClick?.(page)}
+      style={{
+        transform: transform ? `translate3d(${transform.x}px, ${transform.y}px, 0)` : undefined,
+        transition: isDragging ? 'none' : undefined
+      }}
+      {...attributes}
     >
-      <VinesIcon size="sm" disabledPreview>
-        {info?.iconUrl}
-      </VinesIcon>
+      <div {...listeners} className="cursor-grab">
+        <VinesIcon size="sm" disabledPreview>
+          {info?.iconUrl}
+        </VinesIcon>
+      </div>
       <div className="flex max-w-44 flex-col gap-0.5">
         <h1 className="text-sm font-bold leading-tight">
           {getI18nContent(info?.displayName) ?? t('common.utils.untitled')}
@@ -53,7 +68,7 @@ export const ViewItem = forwardRef<HTMLDivElement, IWorkbenchViewItemProps>(({ p
           </span>
         </div>
       </div>
-      <ViewItemMenu page={page} groupId={currentGroupId} />
+      <ViewItemMenu page={page} groupId={currentGroupId} onOpenChange={setDisabled} />
     </div>
   );
 });
