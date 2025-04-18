@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 
 import { useLocalStorage } from '@/hooks/use-local-storage';
 import {
@@ -68,43 +68,47 @@ export const VirtuaWorkbenchViewList: React.FC<IVirtuaWorkbenchViewListProps> = 
     }),
   );
 
-  const pageIds = data?.map(({ id }) => id) ?? [];
-
   const [localOrder, setLocalOrder] = useLocalStorage<string[]>(`vines-ui-workbench-order-${currentGroupId}`, []);
-
-  const handleDragEnd = (event: DragEndEvent) => {
-    const { active, over } = event;
-    if (!over || !data || !onReorder) return;
-
-    if (active.id !== over.id) {
-      const oldIndex = pageIds.indexOf(active.id as string);
-      const newIndex = pageIds.indexOf(over.id as string);
-      const newData = arrayMove(data, oldIndex, newIndex) as IPinPage[];
-      setLocalOrder(newData.map((it) => it.id));
-      onReorder(newData);
-    }
-  };
+  const [orderedData, setOrderedData] = useState<IPinPage[]>(data);
 
   useEffect(() => {
     if (localOrder.length && data.length) {
-      const orderedData = [...data].sort((a, b) => {
+      const sortedData = [...data].sort((a, b) => {
         const aIndex = localOrder.indexOf(a.id);
         const bIndex = localOrder.indexOf(b.id);
         if (aIndex === -1) return 1;
         if (bIndex === -1) return -1;
         return aIndex - bIndex;
       });
-      onReorder?.(orderedData);
+      setOrderedData(sortedData);
+    } else {
+      setOrderedData(data);
     }
   }, [localOrder, data]);
+
+  const pageIds = orderedData?.map(({ id }) => id) ?? [];
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || !orderedData || !onReorder) return;
+
+    if (active.id !== over.id) {
+      const oldIndex = pageIds.indexOf(active.id as string);
+      const newIndex = pageIds.indexOf(over.id as string);
+      const newData = arrayMove(orderedData, oldIndex, newIndex) as IPinPage[];
+      setLocalOrder(newData.map((it) => it.id));
+      setOrderedData(newData);
+      onReorder(newData);
+    }
+  };
   useEffect(() => {
     if (!currentPageId || !currentGroupId || !ref.current) return;
 
-    const index = data.findIndex((it) => it?.id === currentPageId);
+    const index = orderedData.findIndex((it) => it?.id === currentPageId);
     if (index === -1) return;
 
     requestIdleCallback(() => ref.current?.scrollToIndex(index, { smooth: true, offset: -40 }));
-  }, [currentGroupId, currentPageId, data]);
+  }, [currentGroupId, currentPageId, orderedData]);
 
   return (
     <WorkbenchViewItemCurrentData.Provider value={{ pageId: currentPageId, groupId: currentGroupId }}>
@@ -117,7 +121,7 @@ export const VirtuaWorkbenchViewList: React.FC<IVirtuaWorkbenchViewListProps> = 
         <ScrollArea className="-mr-3 pr-3" ref={scrollRef} style={{ height }} disabledOverflowMask>
           <Virtualizer ref={ref} scrollRef={scrollRef}>
             <SortableContext items={pageIds} strategy={verticalListSortingStrategy}>
-              {data.map((it, i) => (
+              {orderedData.map((it, i) => (
                 <ViewItem key={it.id} page={it as IWorkbenchViewItemPage} onClick={onChildClick} />
               ))}
             </SortableContext>
