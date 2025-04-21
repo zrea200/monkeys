@@ -33,7 +33,7 @@ interface MulterFile {
   buffer: Buffer;
 }
 
-@Controller('/workflow/metadata')
+@Controller('workflow/metadata')
 @ApiTags('Workflows/CRUD')
 export class WorkflowCrudController {
   constructor(
@@ -245,7 +245,7 @@ export class WorkflowCrudController {
     res.send(zipContent);
   }
 
-  @Post('/import-from-zip')
+  @Post('import-from-zip')
   @ApiOperation({
     summary: '使用 zip 导入 workflow',
     description: '使用 zip 导入 workflow',
@@ -262,13 +262,13 @@ export class WorkflowCrudController {
     });
   }
 
-  @Post('/import-from-file')
+  @Post('import-from-file')
   @ApiOperation({
     summary: '使用本地文件导入 workflow',
     description: '使用本地文件导入 workflow',
   })
   @ApiConsumes('multipart/form-data')
-  @UseInterceptors(FileInterceptor('file', {
+  @UseInterceptors(FileInterceptor('file', { // 确保请求中的字段名为'file'
     limits: {
       fileSize: 100 * 1024 * 1024, // 100MB，提高文件大小限制
     }
@@ -276,14 +276,24 @@ export class WorkflowCrudController {
   @UseGuards(CompatibleAuthGuard)
   public async importWorkflowByFile(@Req() req: IRequest, @UploadedFile() file: MulterFile) {
     try {
+      // 调试信息: 记录完整请求头和请求路径
+      logger.info(`接收到导入请求: 路径=${req.path}, 方法=${req.method}`);
+      logger.info(`请求头: ${JSON.stringify(req.headers)}`);
+
       const { teamId, userId } = req;
+
+      // 检查请求体信息，帮助调试
+      logger.info(`请求体信息: ${JSON.stringify(req.body || {})}`);
+      logger.info(`文件对象信息: ${file ? '存在' : '不存在'}`);
 
       if (!file) {
         logger.warn(`导入工作流失败: 未找到上传的文件，teamId: ${teamId}`);
+        // 注意：在NestJS中文件通常通过@UploadedFile()装饰器获取
+        logger.info(`请求体中的字段: ${JSON.stringify(Object.keys(req.body || {}))}`);
         return new SuccessResponse({
           code: 400,
           data: null,
-          message: '未找到上传的文件',
+          message: '未找到上传的文件，请确保使用"file"作为字段名上传文件',
         });
       }
 
