@@ -1,12 +1,15 @@
 import { ListDto } from '@/common/dto/list.dto';
 import { CompatibleAuthGuard } from '@/common/guards/auth.guard';
 import { WorkflowAuthGuard } from '@/common/guards/workflow-auth.guard';
+import { logger } from '@/common/logger';
 import { SuccessListResponse, SuccessResponse } from '@/common/response';
+import { S3Helpers } from '@/common/s3';
 import { IRequest } from '@/common/typings/request';
 import { generateZip } from '@/common/utils/zip-asset';
 import { UpdatePermissionsDto } from '@/modules/workflow/dto/req/update-permissions.dto';
-import { Body, Controller, Delete, Get, Param, Post, Put, Query, Req, Res, UseGuards } from '@nestjs/common';
-import { ApiOperation, ApiTags } from '@nestjs/swagger';
+import { Body, Controller, Delete, Get, Param, Post, Put, Query, Req, Res, UploadedFile, UseGuards, UseInterceptors } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { ApiConsumes, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Response } from 'express';
 import { WorkflowAutoPinPage } from '../assets/assets.marketplace.data';
 import { CreateWorkflowDefDto } from './dto/req/create-workflow-def.dto';
@@ -17,13 +20,26 @@ import { WorkflowWithAssetsJson } from './interfaces';
 import { WorkflowCrudService } from './workflow.curd.service';
 import { WorkflowPageService } from './workflow.page.service';
 
+// 定义文件上传接口，解决类型问题
+interface MulterFile {
+  fieldname: string;
+  originalname: string;
+  encoding: string;
+  mimetype: string;
+  size: number;
+  destination?: string;
+  filename?: string;
+  path?: string;
+  buffer: Buffer;
+}
+
 @Controller('/workflow/metadata')
 @ApiTags('Workflows/CRUD')
 export class WorkflowCrudController {
   constructor(
     private readonly service: WorkflowCrudService,
     private readonly pageService: WorkflowPageService,
-  ) {}
+  ) { }
 
   @Get('/')
   @ApiOperation({
@@ -244,6 +260,81 @@ export class WorkflowCrudController {
         workflowId: newWorkflowId,
       },
     });
+  }
+
+  @Post('/import-from-file')
+  @ApiOperation({
+    summary: '使用本地文件导入 workflow',
+    description: '使用本地文件导入 workflow',
+  })
+  @ApiConsumes('multipart/form-data')
+  @UseInterceptors(FileInterceptor('file', {
+    limits: {
+      fileSize: 100 * 1024 * 1024, // 100MB，提高文件大小限制
+    }
+  }))
+  @UseGuards(CompatibleAuthGuard)
+  public async importWorkflowByFile(@Req() req: IRequest, @UploadedFile() file: MulterFile) {
+    try {
+      const { teamId, userId } = req;
+
+      if (!file) {
+        logger.warn(`导入工作流失败: 未找到上传的文件，teamId: ${teamId}`);
+        return new SuccessResponse({
+          code: 400,
+          data: null,
+          message: '未找到上传的文件',
+        });
+      }
+
+      logger.info(`接收到文件上传请求: ${file.originalname}, 大小: ${file.size} 字节, MIME类型: ${file.mimetype}, teamId: ${teamId}, userId: ${userId}`);
+
+      // 检查文件类型
+      const fileExt = file.originalname.toLowerCase();
+      if (!fileExt.endsWith('.zip') && !fileExt.endsWith('.vines')) {
+        logger.warn(`导入工作流失败: 不支持的文件类型 ${fileExt}, teamId: ${teamId}`);
+        return new SuccessResponse({
+          code: 400,
+          data: null,
+          message: '仅支持.zip或.vines格式的文件',
+        });
+      }
+
+      // 上传文件到 S3，获取文件URL
+      try {
+        const s3Helpers = new S3Helpers();
+        const fileName = `import-workflows/${Date.now()}-${file.originalname}`;
+        logger.info(`准备上传文件到S3: ${fileName}, teamId: ${teamId}`);
+
+        const fileUrl = await s3Helpers.uploadFile(file.buffer, fileName);
+        logger.info(`文件已上传至S3: ${fileUrl}, teamId: ${teamId}`);
+
+        // 使用现有导入方法处理
+        logger.info(`开始导入工作流, teamId: ${teamId}, userId: ${userId}`);
+        const { newWorkflowId } = await this.service.importWorkflowByZip(teamId, userId, fileUrl);
+        logger.info(`工作流导入成功，新工作流ID: ${newWorkflowId}, teamId: ${teamId}`);
+
+        return new SuccessResponse({
+          data: {
+            workflowId: newWorkflowId,
+          },
+        });
+      } catch (s3Error) {
+        logger.error(`S3上传或工作流导入失败: ${s3Error.message}, teamId: ${teamId}`, s3Error);
+        return new SuccessResponse({
+          code: 500,
+          data: null,
+          message: `导入工作流失败: 上传或导入过程中出错 - ${s3Error.message}`,
+        });
+      }
+    } catch (error) {
+      logger.error(`工作流导入失败: ${error.message}`, error);
+      return new SuccessResponse({
+        code: 500,
+        data: null,
+        message: `导入工作流失败: ${error.message}`,
+      });
+    }
   }
 
   @Post('/:workflowId/clone')

@@ -113,6 +113,12 @@
         "FAILED": "Failed",
         "TIMED_OUT": "Timed Out",
         "TERMINATED": "Terminated"
+      },
+      "import": {
+        "loading": "Importing workflow...",
+        "success": "Workflow imported successfully",
+        "error": "Failed to import workflow",
+        "invalid-file-type": "Only .zip or .vines files are supported"
       }
     },
     "toast": {
@@ -1018,7 +1024,8 @@
       }
     },
     "sidebar": {
-      "add": "Star a view"
+      "add": "Add Workflow",
+      "import": "Import Workflow"
     }
   },
   "ugc-page": {
@@ -2166,7 +2173,7 @@
         },
         "menu": {
           "del-view-button": "Delete View",
-          "del-view": "Are you sure you want to delete ‘{{ view }}’?",
+          "del-view": "Are you sure you want to delete '{{ view }}'?",
           "pin": "Pin",
           "toggle-pin": "{{ status }}Pinning...",
           "pin-un": "un",

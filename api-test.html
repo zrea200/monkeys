@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>工作流导入测试</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      padding: 20px;
+      max-width: 600px;
+      margin: 0 auto;
+    }
+    .container {
+      border: 1px solid #ddd;
+      padding: 20px;
+      border-radius: 5px;
+    }
+    h1 {
+      color: #333;
+    }
+    .form-group {
+      margin-bottom: 15px;
+    }
+    label {
+      display: block;
+      margin-bottom: 5px;
+    }
+    button {
+      background-color: #4CAF50;
+      color: white;
+      padding: 10px 15px;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    button:hover {
+      background-color: #45a049;
+    }
+    #result {
+      margin-top: 20px;
+      padding: 10px;
+      border: 1px solid #ddd;
+      border-radius: 5px;
+      background-color: #f9f9f9;
+      min-height: 100px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>工作流导入测试</h1>
+    <div class="form-group">
+      <label for="fileUpload">选择.zip或.vines文件:</label>
+      <input type="file" id="fileUpload" accept=".zip,.vines">
+    </div>
+    <div class="form-group">
+      <button id="uploadBtn">上传并导入</button>
+    </div>
+    <div id="result">
+      <p>结果将显示在这里...</p>
+    </div>
+  </div>
+
+  <script>
+    document.getElementById('uploadBtn').addEventListener('click', async () => {
+      const fileInput = document.getElementById('fileUpload');
+      const resultDiv = document.getElementById('result');
+      
+      if (!fileInput.files || fileInput.files.length === 0) {
+        resultDiv.innerHTML = '<p style="color: red;">请先选择文件</p>';
+        return;
+      }
+      
+      const file = fileInput.files[0];
+      if (!file.name.endsWith('.zip') && !file.name.endsWith('.vines')) {
+        resultDiv.innerHTML = '<p style="color: red;">仅支持.zip或.vines格式的文件</p>';
+        return;
+      }
+      
+      resultDiv.innerHTML = '<p>上传中，请稍候...</p>';
+      
+      const formData = new FormData();
+      formData.append('file', file);
+      
+      try {
+        const response = await fetch('http://localhost:2048/api/workflow/metadata/import-from-file', {
+          method: 'POST',
+          body: formData,
+          credentials: 'include'
+        });
+        
+        const responseText = await response.text();
+        console.log('响应状态:', response.status);
+        console.log('响应内容:', responseText);
+        
+        let resultHTML = '';
+        if (response.ok) {
+          try {
+            const data = JSON.parse(responseText);
+            resultHTML = `
+              <p style="color: green;">上传成功!</p>
+              <pre>${JSON.stringify(data, null, 2)}</pre>
+            `;
+          } catch (e) {
+            resultHTML = `
+              <p style="color: green;">上传成功，但返回非JSON格式:</p>
+              <pre>${responseText}</pre>
+            `;
+          }
+        } else {
+          resultHTML = `
+            <p style="color: red;">上传失败: ${response.status}</p>
+            <pre>${responseText}</pre>
+          `;
+        }
+        
+        resultDiv.innerHTML = resultHTML;
+      } catch (error) {
+        console.error('上传过程中出错:', error);
+        resultDiv.innerHTML = `<p style="color: red;">上传错误: ${error.message}</p>`;
+      }
+    });
+  </script>
+</body>
+</html> 

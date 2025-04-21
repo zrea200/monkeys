@@ -1011,7 +1011,8 @@
       }
     },
     "sidebar": {
-      "add": "添加固定视图"
+      "add": "添加工作流",
+      "import": "导入工作流"
     }
   },
   "ugc-page": {
@@ -1145,6 +1146,12 @@
               "market-import": "市场导入"
             }
           }
+        },
+        "import": {
+          "loading": "正在导入工作流...",
+          "success": "工作流导入成功",
+          "error": "工作流导入失败",
+          "invalid-file-type": "仅支持导入.zip或.vines格式的文件"
         }
       }
     },

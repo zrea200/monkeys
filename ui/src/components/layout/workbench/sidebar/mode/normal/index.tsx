@@ -5,8 +5,10 @@ import { Link } from '@tanstack/react-router';
 import { useCreation, useDebounceEffect, useLatest, useThrottleEffect } from 'ahooks';
 import { AnimatePresence } from 'framer-motion';
 import { keyBy, map } from 'lodash';
-import { CircleSlash, Plus } from 'lucide-react';
+import { CircleSlash, Plus, Upload } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
+import { toast } from 'sonner';
+import { useSWRConfig } from 'swr';
 
 import { useUpdateGroupPages, useWorkspacePages } from '@/apis/pages';
 import { IPinPage } from '@/apis/pages/typings.ts';
@@ -33,6 +35,8 @@ export const WorkbenchNormalModeSidebar: React.FC<IWorkbenchNormalModeSidebarPro
   const { data, isLoading } = useWorkspacePages();
   const [groupId, setGroupId] = useState<string>('default');
   const { trigger } = useUpdateGroupPages(groupId);
+  const { mutate } = useSWRConfig();
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const originalPages = data?.pages ?? [];
   const originalGroups = useCreation(() => {
@@ -143,6 +147,65 @@ export const WorkbenchNormalModeSidebar: React.FC<IWorkbenchNormalModeSidebarPro
 
   const hasGroups = lists.length && !isLoading;
 
+  const handleImportWorkflow = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.name.endsWith('.vines') && !file.name.endsWith('.zip')) {
+      toast.error(t('workflow.import.invalid-file-type'));
+      return;
+    }
+
+    const formData = new FormData();
+    formData.append('file', file);
+
+    try {
+      toast.promise(
+        fetch('/api/workflow/metadata/import-from-file', {
+          method: 'POST',
+          body: formData,
+          headers: {
+            // 不设置 Content-Type，让浏览器自动处理 multipart/form-data
+          },
+          credentials: 'include'  // 确保发送凭证
+        })
+          .then(async res => {
+            console.log('导入响应状态:', res.status);
+            if (!res.ok) {
+              const errorText = await res.text();
+              console.error('导入错误详情:', errorText);
+              throw new Error(`导入失败: ${res.status} ${errorText}`);
+            }
+            return res.json();
+          })
+          .catch(err => {
+            console.error('导入过程中出错:', err);
+            throw err;
+          }),
+        {
+          loading: t('workflow.import.loading'),
+          success: (data) => {
+            console.log('导入成功，结果:', data);
+            mutate('/api/workflow/pages/pinned');
+            if (fileInputRef.current) fileInputRef.current.value = '';
+            return t('workflow.import.success');
+          },
+          error: (err) => {
+            console.error('导入工作流失败:', err);
+            return `${t('workflow.import.error')}: ${err.message}`;
+          },
+        }
+      );
+    } catch (error) {
+      console.error('导入工作流过程中发生异常:', error);
+      toast.error(`${t('workflow.import.error')}: ${error instanceof Error ? error.message : '未知错误'}`);
+    }
+  };
+
   return (
     <div
       className={cn(
@@ -193,14 +256,36 @@ export const WorkbenchNormalModeSidebar: React.FC<IWorkbenchNormalModeSidebarPro
                 });
               }}
             />
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Link to="/$teamId/workflows/" params={{ teamId }}>
-                  <Button icon={<Plus />} className="mt-2 w-full" variant="outline" />
-                </Link>
-              </TooltipTrigger>
-              <TooltipContent>{t('workbench.sidebar.add')}</TooltipContent>
-            </Tooltip>
+            <div className="flex w-full gap-2 mt-2">
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Link to="/$teamId/workflows/" params={{ teamId }}>
+                    <Button icon={<Plus />} className="w-full" variant="outline" />
+                  </Link>
+                </TooltipTrigger>
+                <TooltipContent>{t('workbench.sidebar.add')}</TooltipContent>
+              </Tooltip>
+
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    icon={<Upload />}
+                    className="w-full"
+                    variant="outline"
+                    onClick={handleImportWorkflow}
+                  />
+                </TooltipTrigger>
+                <TooltipContent>{t('workbench.sidebar.import')}</TooltipContent>
+              </Tooltip>
+            </div>
+
+            <input
+              type="file"
+              ref={fileInputRef}
+              className="hidden"
+              accept=".zip,.vines"
+              onChange={handleFileChange}
+            />
           </div>
         </>
       )}
